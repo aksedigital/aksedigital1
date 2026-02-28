@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { CustomCursor } from "@/components/CustomCursor";
-import { SmoothScroll } from "@/components/SmoothScroll";
-import { GrainOverlay } from "@/components/GrainOverlay";
+import { LayoutWrapper } from "@/components/LayoutWrapper";
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -80,13 +76,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${plusJakarta.variable} font-sans antialiased`}>
-        <SmoothScroll>
-          <CustomCursor />
-          <GrainOverlay />
-          <Header />
-          <main>{children}</main>
-          <Footer />
-        </SmoothScroll>
+        <LayoutWrapper>{children}</LayoutWrapper>
       </body>
     </html>
   );
