@@ -10,10 +10,24 @@ export function ContactForm() {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setSending(true);
-        // Simulated submission delay
-        await new Promise((r) => setTimeout(r, 1500));
+        const formData = new FormData(e.currentTarget);
+        try {
+            const res = await fetch("/api/iletisim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: formData.get("name"),
+                    email: formData.get("email"),
+                    phone: formData.get("phone"),
+                    subject: formData.get("subject"),
+                    message: formData.get("message"),
+                }),
+            });
+            if (res.ok) setSent(true);
+        } catch {
+            // silent fail
+        }
         setSending(false);
-        setSent(true);
     };
 
     if (sent) {
