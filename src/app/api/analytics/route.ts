@@ -13,17 +13,25 @@ function getAuth() {
     return oauth2Client;
 }
 
+async function getAccessToken() {
+    const auth = getAuth();
+    const { token } = await auth.getAccessToken();
+    return token;
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "overview";
-    const period = searchParams.get("period") || "28"; // days
+    const period = searchParams.get("period") || "28";
 
     try {
         if (action === "analytics") {
-            return await getAnalyticsData(period);
+            const data = await getAnalyticsDataRaw(period);
+            return NextResponse.json({ success: true, ...data });
         }
         if (action === "search") {
-            return await getSearchConsoleData(period);
+            const data = await getSearchConsoleDataRaw(period);
+            return NextResponse.json({ success: true, ...data });
         }
         if (action === "overview") {
             const [analytics, search] = await Promise.allSettled([
@@ -38,7 +46,6 @@ export async function GET(req: NextRequest) {
                 searchError: search.status === "rejected" ? search.reason?.message : null,
             });
         }
-
         return NextResponse.json({ success: false, error: "Invalid action" }, { status: 400 });
     } catch (err: unknown) {
         console.error("Analytics API error:", err);
@@ -46,79 +53,72 @@ export async function GET(req: NextRequest) {
     }
 }
 
-async function getAnalyticsDataRaw(period: string) {
-    const auth = getAuth();
-    const analyticsData = google.analyticsdata({ version: "v1beta", auth });
-    const propertyId = process.env.GA4_PROPERTY_ID || "468682327"; // from the stream
+/* ── GA4 Data API via REST ── */
+async function ga4Report(accessToken: string, propertyId: string, body: Record<string, unknown>) {
+    const res = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        }
+    );
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `GA4 API error: ${res.status}`);
+    }
+    return res.json();
+}
 
+async function getAnalyticsDataRaw(period: string) {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error("No access token");
+    const propertyId = process.env.GA4_PROPERTY_ID || "468682327";
     const startDate = `${period}daysAgo`;
 
-    // Run report for page views, users, sessions
     const [overviewRes, pagesRes, countriesRes, devicesRes, sourcesRes, dailyRes] = await Promise.all([
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                metrics: [
-                    { name: "activeUsers" },
-                    { name: "newUsers" },
-                    { name: "sessions" },
-                    { name: "screenPageViews" },
-                    { name: "averageSessionDuration" },
-                    { name: "bounceRate" },
-                ],
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            metrics: [
+                { name: "activeUsers" }, { name: "newUsers" }, { name: "sessions" },
+                { name: "screenPageViews" }, { name: "averageSessionDuration" }, { name: "bounceRate" },
+            ],
         }),
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                dimensions: [{ name: "pagePath" }],
-                metrics: [{ name: "screenPageViews" }, { name: "activeUsers" }],
-                orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
-                limit: "10" as unknown as number,
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            dimensions: [{ name: "pagePath" }],
+            metrics: [{ name: "screenPageViews" }, { name: "activeUsers" }],
+            orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+            limit: 10,
         }),
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                dimensions: [{ name: "country" }],
-                metrics: [{ name: "activeUsers" }],
-                orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
-                limit: "10" as unknown as number,
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            dimensions: [{ name: "country" }],
+            metrics: [{ name: "activeUsers" }],
+            orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+            limit: 10,
         }),
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                dimensions: [{ name: "deviceCategory" }],
-                metrics: [{ name: "activeUsers" }],
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            dimensions: [{ name: "deviceCategory" }],
+            metrics: [{ name: "activeUsers" }],
         }),
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                dimensions: [{ name: "sessionSource" }],
-                metrics: [{ name: "sessions" }],
-                orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-                limit: "10" as unknown as number,
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            dimensions: [{ name: "sessionSource" }],
+            metrics: [{ name: "sessions" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: 10,
         }),
-        analyticsData.properties.runReport({
-            property: `properties/${propertyId}`,
-            requestBody: {
-                dateRanges: [{ startDate, endDate: "today" }],
-                dimensions: [{ name: "date" }],
-                metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }],
-                orderBys: [{ dimension: { dimensionName: "date" } }],
-            },
+        ga4Report(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate: "today" }],
+            dimensions: [{ name: "date" }],
+            metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }],
+            orderBys: [{ dimension: { dimensionName: "date" } }],
         }),
     ]);
 
-    const row = overviewRes.data.rows?.[0];
+    const row = overviewRes.rows?.[0];
     const overview = {
         activeUsers: Number(row?.metricValues?.[0]?.value || 0),
         newUsers: Number(row?.metricValues?.[1]?.value || 0),
@@ -128,28 +128,30 @@ async function getAnalyticsDataRaw(period: string) {
         bounceRate: Number(row?.metricValues?.[5]?.value || 0),
     };
 
-    const pages = (pagesRes.data.rows || []).map(r => ({
+    const parseRows = (res: Record<string, unknown[]>) => res.rows || [];
+
+    const pages = (parseRows(pagesRes) as Record<string, Record<string, string>[]>[]).map((r: Record<string, Record<string, string>[]>) => ({
         path: r.dimensionValues?.[0]?.value || "",
         views: Number(r.metricValues?.[0]?.value || 0),
         users: Number(r.metricValues?.[1]?.value || 0),
     }));
 
-    const countries = (countriesRes.data.rows || []).map(r => ({
+    const countries = (parseRows(countriesRes) as Record<string, Record<string, string>[]>[]).map((r: Record<string, Record<string, string>[]>) => ({
         country: r.dimensionValues?.[0]?.value || "",
         users: Number(r.metricValues?.[0]?.value || 0),
     }));
 
-    const devices = (devicesRes.data.rows || []).map(r => ({
+    const devices = (parseRows(devicesRes) as Record<string, Record<string, string>[]>[]).map((r: Record<string, Record<string, string>[]>) => ({
         device: r.dimensionValues?.[0]?.value || "",
         users: Number(r.metricValues?.[0]?.value || 0),
     }));
 
-    const sources = (sourcesRes.data.rows || []).map(r => ({
+    const sources = (parseRows(sourcesRes) as Record<string, Record<string, string>[]>[]).map((r: Record<string, Record<string, string>[]>) => ({
         source: r.dimensionValues?.[0]?.value || "",
         sessions: Number(r.metricValues?.[0]?.value || 0),
     }));
 
-    const daily = (dailyRes.data.rows || []).map(r => ({
+    const daily = (parseRows(dailyRes) as Record<string, Record<string, string>[]>[]).map((r: Record<string, Record<string, string>[]>) => ({
         date: r.dimensionValues?.[0]?.value || "",
         users: Number(r.metricValues?.[0]?.value || 0),
         pageViews: Number(r.metricValues?.[1]?.value || 0),
@@ -158,6 +160,7 @@ async function getAnalyticsDataRaw(period: string) {
     return { overview, pages, countries, devices, sources, daily };
 }
 
+/* ── Search Console API ── */
 async function getSearchConsoleDataRaw(period: string) {
     const auth = getAuth();
     const searchconsole = google.searchconsole({ version: "v1", auth });
@@ -169,29 +172,15 @@ async function getSearchConsoleDataRaw(period: string) {
     const [queriesRes, pagesRes, dailyRes] = await Promise.all([
         searchconsole.searchanalytics.query({
             siteUrl,
-            requestBody: {
-                startDate,
-                endDate,
-                dimensions: ["query"],
-                rowLimit: 20,
-            },
+            requestBody: { startDate, endDate, dimensions: ["query"], rowLimit: 20 },
         }),
         searchconsole.searchanalytics.query({
             siteUrl,
-            requestBody: {
-                startDate,
-                endDate,
-                dimensions: ["page"],
-                rowLimit: 10,
-            },
+            requestBody: { startDate, endDate, dimensions: ["page"], rowLimit: 10 },
         }),
         searchconsole.searchanalytics.query({
             siteUrl,
-            requestBody: {
-                startDate,
-                endDate,
-                dimensions: ["date"],
-            },
+            requestBody: { startDate, endDate, dimensions: ["date"] },
         }),
     ]);
 
@@ -224,18 +213,6 @@ async function getSearchConsoleDataRaw(period: string) {
 
     return {
         overview: { totalClicks, totalImpressions, avgCtr, avgPosition },
-        queries,
-        pages,
-        daily,
+        queries, pages, daily,
     };
-}
-
-async function getAnalyticsData(period: string) {
-    const data = await getAnalyticsDataRaw(period);
-    return NextResponse.json({ success: true, ...data });
-}
-
-async function getSearchConsoleData(period: string) {
-    const data = await getSearchConsoleDataRaw(period);
-    return NextResponse.json({ success: true, ...data });
 }
