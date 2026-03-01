@@ -1,16 +1,16 @@
 import { google } from "googleapis";
 
-const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    "https://developers.google.com/oauthplayground"
-);
-
-oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-});
-
-export const drive = google.drive({ version: "v3", auth: oauth2Client });
+export function getDrive() {
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        "https://developers.google.com/oauthplayground"
+    );
+    oauth2Client.setCredentials({
+        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    });
+    return google.drive({ version: "v3", auth: oauth2Client });
+}
 
 export interface DriveFile {
     id: string;
@@ -30,7 +30,7 @@ export async function listFiles(folderId?: string, query?: string) {
     if (folderId) q += ` and '${folderId}' in parents`;
     if (query) q += ` and name contains '${query}'`;
 
-    const res = await drive.files.list({
+    const res = await getDrive().files.list({
         q,
         fields: "files(id,name,mimeType,size,modifiedTime,iconLink,webViewLink,webContentLink,parents,thumbnailLink)",
         orderBy: "folder,name",
@@ -41,7 +41,7 @@ export async function listFiles(folderId?: string, query?: string) {
 }
 
 export async function createFolder(name: string, parentId?: string) {
-    const res = await drive.files.create({
+    const res = await getDrive().files.create({
         requestBody: {
             name,
             mimeType: "application/vnd.google-apps.folder",
@@ -53,11 +53,11 @@ export async function createFolder(name: string, parentId?: string) {
 }
 
 export async function deleteFile(fileId: string) {
-    await drive.files.delete({ fileId });
+    await getDrive().files.delete({ fileId });
 }
 
 export async function renameFile(fileId: string, name: string) {
-    const res = await drive.files.update({
+    const res = await getDrive().files.update({
         fileId,
         requestBody: { name },
         fields: "id,name,mimeType",
@@ -66,7 +66,7 @@ export async function renameFile(fileId: string, name: string) {
 }
 
 export async function getUploadUrl(fileName: string, mimeType: string, parentId?: string) {
-    const res = await drive.files.create({
+    const res = await getDrive().files.create({
         requestBody: {
             name: fileName,
             mimeType,
@@ -82,6 +82,6 @@ export async function getUploadUrl(fileName: string, mimeType: string, parentId?
 }
 
 export async function getStorageQuota() {
-    const res = await drive.about.get({ fields: "storageQuota" });
+    const res = await getDrive().about.get({ fields: "storageQuota" });
     return res.data.storageQuota;
 }

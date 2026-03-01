@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { drive } from "@/lib/gdrive";
+import { getDrive } from "@/lib/gdrive";
 
 export async function GET(req: NextRequest) {
     try {
@@ -9,6 +9,8 @@ export async function GET(req: NextRequest) {
         if (!fileId) {
             return NextResponse.json({ error: "fileId required" }, { status: 400 });
         }
+
+        const drive = getDrive();
 
         // Get file metadata first
         const meta = await drive.files.get({
