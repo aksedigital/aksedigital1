@@ -1,31 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Lock, Phone, Eye, EyeOff, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const supabase = createClient();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setLoading(true);
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
+        const res = await fetch("/api/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "admin_login", phone, password }),
         });
+        const data = await res.json();
 
-        if (error) {
-            setError("E-posta veya şifre hatalı.");
+        if (!data.success) {
+            setError(data.error || "Giriş başarısız");
             setLoading(false);
             return;
         }
@@ -53,7 +53,7 @@ export default function LoginPage() {
                         </div>
                         <div>
                             <h2 className="font-bold">Giriş Yap</h2>
-                            <p className="text-xs text-muted">Admin hesabınızla giriş yapın</p>
+                            <p className="text-xs text-muted">Telefon ve şifrenizle giriş yapın</p>
                         </div>
                     </div>
 
@@ -66,17 +66,17 @@ export default function LoginPage() {
 
                         <div>
                             <label className="block text-xs text-muted uppercase tracking-widest mb-2">
-                                E-posta
+                                Telefon
                             </label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                                 <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
                                     required
                                     className="w-full bg-background border border-border rounded-xl pl-11 pr-4 py-3.5 text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:border-primary/50 transition-colors"
-                                    placeholder="admin@aksedigital.com"
+                                    placeholder="05XX XXX XX XX"
                                 />
                             </div>
                         </div>
@@ -114,6 +114,12 @@ export default function LoginPage() {
                             <ArrowRight className="w-4 h-4" />
                         </button>
                     </form>
+
+                    <div className="mt-4 text-center">
+                        <a href="/portal/giris" className="text-xs text-muted hover:text-primary transition-colors">
+                            Müşteri girişi →
+                        </a>
+                    </div>
                 </div>
 
                 <p className="text-center text-xs text-muted mt-6">

@@ -1,51 +1,73 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { jwtVerify } from "jose";
+
+const JWT_SECRET = new TextEncoder().encode(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || "fallback-secret-key-change-me"
+);
 
 export async function middleware(request: NextRequest) {
-    let supabaseResponse = NextResponse.next({ request });
+    const token = request.cookies.get("auth_token")?.value;
+    const path = request.nextUrl.pathname;
 
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll();
-                },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        request.cookies.set(name, value)
-                    );
-                    supabaseResponse = NextResponse.next({ request });
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        supabaseResponse.cookies.set(name, value, options)
-                    );
-                },
-            },
+    // Admin routes protection
+    if (path.startsWith("/admin")) {
+        if (!token) {
+            return NextResponse.redirect(new URL("/login", request.url));
         }
-    );
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    // If accessing admin routes and not logged in, redirect to login
-    if (request.nextUrl.pathname.startsWith("/admin") && !user) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        return NextResponse.redirect(url);
+        try {
+            const { payload } = await jwtVerify(token, JWT_SECRET);
+            if (payload.role === "customer") {
+                return NextResponse.redirect(new URL("/portal", request.url));
+            }
+        } catch {
+            // Invalid token
+            const res = NextResponse.redirect(new URL("/login", request.url));
+            res.cookies.set("auth_token", "", { maxAge: 0, path: "/" });
+            return res;
+        }
     }
 
-    // If logged in and on login page, redirect to admin
-    if (request.nextUrl.pathname === "/login" && user) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/admin";
-        return NextResponse.redirect(url);
+    // Portal routes protection
+    if (path.startsWith("/portal") && !path.startsWith("/portal/giris")) {
+        if (!token) {
+            return NextResponse.redirect(new URL("/portal/giris", request.url));
+        }
+        try {
+            const { payload } = await jwtVerify(token, JWT_SECRET);
+            if (payload.role !== "customer") {
+                return NextResponse.redirect(new URL("/admin", request.url));
+            }
+        } catch {
+            const res = NextResponse.redirect(new URL("/portal/giris", request.url));
+            res.cookies.set("auth_token", "", { maxAge: 0, path: "/" });
+            return res;
+        }
     }
 
-    return supabaseResponse;
+    // Login page — redirect if already logged in
+    if (path === "/login" && token) {
+        try {
+            const { payload } = await jwtVerify(token, JWT_SECRET);
+            if (payload.role === "customer") {
+                return NextResponse.redirect(new URL("/portal", request.url));
+            }
+            return NextResponse.redirect(new URL("/admin", request.url));
+        } catch { /* invalid token, stay on login */ }
+    }
+
+    // Portal login page — redirect if already logged in
+    if (path === "/portal/giris" && token) {
+        try {
+            const { payload } = await jwtVerify(token, JWT_SECRET);
+            if (payload.role === "customer") {
+                return NextResponse.redirect(new URL("/portal", request.url));
+            }
+        } catch { /* stay on login */ }
+    }
+
+    return NextResponse.next();
 }
 
 export const config = {
-    matcher: ["/admin/:path*", "/login"],
+    matcher: ["/admin/:path*", "/login", "/portal/:path*"],
 };

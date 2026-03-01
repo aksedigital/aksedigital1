@@ -1,105 +1,98 @@
-import type { Metadata } from "next";
-import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
-import { ArrowUpRight } from "lucide-react";
+import { createServerSupabase } from "@/lib/supabase-server";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
-export const metadata: Metadata = {
-    title: "Blog | Dijital Pazarlama & Web Tasarım Yazıları",
-    description:
-        "SEO, web tasarım, sosyal medya ve dijital pazarlama hakkında güncel blog yazıları. Dijital dünyaya dair bilmeniz gereken her şey.",
-};
+export const revalidate = 60; // Revalidate every 60 seconds
 
-const posts = [
-    {
-        title: "2026'da SEO Trendleri: Neler Değişiyor?",
-        excerpt: "Yapay zeka, sesli arama ve Core Web Vitals'ın SEO üzerindeki etkisini keşfedin.",
-        category: "SEO",
-        date: "25 Şubat 2026",
-        color: "from-blue-500/20 to-blue-600/5",
-    },
-    {
-        title: "Etkili Landing Page Tasarımının 10 Kuralı",
-        excerpt: "Dönüşüm oranınızı artıracak landing page tasarım prensiplerini öğrenin.",
-        category: "Web Tasarım",
-        date: "20 Şubat 2026",
-        color: "from-purple-500/20 to-purple-600/5",
-    },
-    {
-        title: "Mobil Uygulama mı, Responsive Site mi?",
-        excerpt: "İşletmeniz için doğru tercih hangisi? Artı ve eksilerini karşılaştırıyoruz.",
-        category: "Mobil",
-        date: "15 Şubat 2026",
-        color: "from-emerald-500/20 to-emerald-600/5",
-    },
-    {
-        title: "Sosyal Medyada İçerik Stratejisi Nasıl Oluşturulur?",
-        excerpt: "Etkileşim yaratan, marka bilinirliğini artıran içerik stratejisi rehberi.",
-        category: "Sosyal Medya",
-        date: "10 Şubat 2026",
-        color: "from-orange-500/20 to-orange-600/5",
-    },
-    {
-        title: "E-Ticaret Sitenizin Satışlarını Artırmanın 7 Yolu",
-        excerpt: "Dönüşüm optimizasyonu, UX ve pazarlama taktikleri ile satışlarınızı katlamak.",
-        category: "E-Ticaret",
-        date: "5 Şubat 2026",
-        color: "from-pink-500/20 to-pink-600/5",
-    },
-    {
-        title: "Google Ads ile Etkili Reklam Kampanyası Oluşturma",
-        excerpt: "Bütçe yönetimi, hedefleme ve reklam metni yazma hakkında ipuçları.",
-        category: "Dijital Pazarlama",
-        date: "1 Şubat 2026",
-        color: "from-yellow-500/20 to-yellow-600/5",
-    },
-];
+export default async function BlogPage() {
+    const supabase = await createServerSupabase();
+    const { data: posts } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("published", true)
+        .order("created_at", { ascending: false });
 
-export default function BlogPage() {
+    const formatDate = (d: string) =>
+        new Date(d).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+
     return (
         <>
-            <section className="pt-32 pb-20 md:pt-40 md:pb-32">
-                <div className="max-w-[1400px] mx-auto px-6 md:px-10">
+            {/* Hero */}
+            <section className="pt-40 pb-20 px-6">
+                <div className="max-w-6xl mx-auto">
                     <Reveal>
                         <p className="text-muted text-sm font-medium uppercase tracking-widest mb-4">Blog</p>
-                        <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[0.95]">
-                            Dijital <span className="text-primary">Dünyadan</span>
-                        </h1>
                     </Reveal>
-                    <Reveal delay={0.2}>
-                        <p className="text-muted text-lg md:text-xl max-w-2xl mt-8 leading-relaxed">
-                            SEO, web tasarım, dijital pazarlama ve daha fazlası hakkında
-                            bilgilendirici yazılar.
-                        </p>
+                    <Reveal delay={0.1}>
+                        <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[0.95]">
+                            Dijital Dünyadan
+                            <br />
+                            <span className="text-primary">Güncel Yazılar</span>
+                        </h1>
                     </Reveal>
                 </div>
             </section>
 
-            <section className="pb-24 md:pb-32">
-                <div className="max-w-[1400px] mx-auto px-6 md:px-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {posts.map((post, i) => (
-                            <Reveal key={post.title} delay={i * 0.08}>
-                                <article className="hoverable group block">
-                                    <div
-                                        className={`aspect-[16/10] rounded-xl bg-gradient-to-br ${post.color} border border-border mb-5 overflow-hidden`}
+            {/* Posts Grid */}
+            <section className="px-6 pb-32">
+                <div className="max-w-6xl mx-auto">
+                    {!posts || posts.length === 0 ? (
+                        <Reveal>
+                            <div className="text-center py-20">
+                                <p className="text-muted text-lg">Henüz blog yazısı yayınlanmadı.</p>
+                                <p className="text-muted text-sm mt-2">Yakında yeni içerikler burada olacak!</p>
+                            </div>
+                        </Reveal>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {posts.map((post, i) => (
+                                <Reveal key={post.id} delay={i * 0.1}>
+                                    <Link
+                                        href={`/blog/${post.slug}`}
+                                        className="group block bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all duration-500"
                                     >
-                                        <div className="w-full h-full group-hover:scale-105 transition-transform duration-700" />
-                                    </div>
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <span className="text-xs text-primary font-medium uppercase tracking-widest">
-                                            {post.category}
-                                        </span>
-                                        <span className="text-xs text-muted">•</span>
-                                        <span className="text-xs text-muted">{post.date}</span>
-                                    </div>
-                                    <h2 className="text-lg font-bold group-hover:text-primary transition-colors duration-300 mb-2">
-                                        {post.title}
-                                    </h2>
-                                    <p className="text-sm text-muted leading-relaxed">{post.excerpt}</p>
-                                </article>
-                            </Reveal>
-                        ))}
-                    </div>
+                                        {/* Cover Image */}
+                                        {post.cover_url ? (
+                                            <div className="aspect-video overflow-hidden">
+                                                <img
+                                                    src={post.cover_url}
+                                                    alt={post.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="aspect-video bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                                                <span className="text-4xl font-extrabold text-white/10">{post.title?.charAt(0)}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Content */}
+                                        <div className="p-6">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                {post.category && (
+                                                    <span className="text-xs text-primary font-medium uppercase tracking-widest">
+                                                        {post.category}
+                                                    </span>
+                                                )}
+                                                <span className="text-xs text-muted">{formatDate(post.created_at)}</span>
+                                            </div>
+                                            <h2 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">
+                                                {post.title}
+                                            </h2>
+                                            {post.excerpt && (
+                                                <p className="text-sm text-muted line-clamp-2">{post.excerpt}</p>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-4 text-xs text-primary font-medium">
+                                                Devamını Oku
+                                                <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                            </div>
+                                        </div>
+                                    </Link>
+                                </Reveal>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </section>
         </>

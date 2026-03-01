@@ -9,6 +9,9 @@ export function CustomCursor() {
         const cursor = cursorRef.current;
         if (!cursor) return;
 
+        // Add class to hide default cursor only when custom cursor is active
+        document.body.classList.add("has-custom-cursor");
+
         const onMouseMove = (e: MouseEvent) => {
             cursor.style.left = e.clientX + "px";
             cursor.style.top = e.clientY + "px";
@@ -38,6 +41,7 @@ export function CustomCursor() {
         if (mq.matches) cursor.style.display = "none";
 
         return () => {
+            document.body.classList.remove("has-custom-cursor");
             document.removeEventListener("mousemove", onMouseMove);
             observer.disconnect();
         };

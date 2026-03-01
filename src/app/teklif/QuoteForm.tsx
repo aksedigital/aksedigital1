@@ -49,7 +49,25 @@ export function QuoteForm() {
     };
 
     const handleSubmit = async () => {
-        setSent(true);
+        try {
+            const res = await fetch("/api/teklif", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email,
+                    phone: formData.phone,
+                    company: formData.company,
+                    services: formData.services,
+                    projectDesc: formData.projectDesc,
+                    deadline: formData.deadline,
+                    budget: formData.budget,
+                }),
+            });
+            if (res.ok) setSent(true);
+        } catch {
+            // silent fail
+        }
     };
 
     if (sent) {
@@ -76,8 +94,8 @@ export function QuoteForm() {
                     <div key={s} className="flex items-center gap-2">
                         <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-300 ${i <= step
-                                    ? "bg-primary text-white"
-                                    : "bg-card border border-border text-muted"
+                                ? "bg-primary text-white"
+                                : "bg-card border border-border text-muted"
                                 }`}
                         >
                             {i < step ? <Check className="w-4 h-4" /> : i + 1}
@@ -172,8 +190,8 @@ export function QuoteForm() {
                                         key={s}
                                         onClick={() => toggleService(s)}
                                         className={`hoverable p-4 rounded-xl border text-sm font-medium text-center transition-all duration-300 ${formData.services.includes(s)
-                                                ? "border-primary bg-primary/10 text-primary"
-                                                : "border-border bg-card text-muted hover:border-primary/30"
+                                            ? "border-primary bg-primary/10 text-primary"
+                                            : "border-border bg-card text-muted hover:border-primary/30"
                                             }`}
                                     >
                                         {s}
@@ -221,8 +239,8 @@ export function QuoteForm() {
                                         key={b}
                                         onClick={() => setFormData({ ...formData, budget: b })}
                                         className={`hoverable p-4 rounded-xl border text-sm font-medium text-left transition-all duration-300 ${formData.budget === b
-                                                ? "border-primary bg-primary/10 text-primary"
-                                                : "border-border bg-card text-muted hover:border-primary/30"
+                                            ? "border-primary bg-primary/10 text-primary"
+                                            : "border-border bg-card text-muted hover:border-primary/30"
                                             }`}
                                     >
                                         {b}
