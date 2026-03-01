@@ -19,6 +19,36 @@ async function getAccessToken() {
     return token;
 }
 
+let cachedPropertyId: string | null = null;
+
+async function getGA4PropertyId(accessToken: string): Promise<string> {
+    if (process.env.GA4_PROPERTY_ID) return process.env.GA4_PROPERTY_ID;
+    if (cachedPropertyId) return cachedPropertyId;
+
+    // Auto-discover via Admin API
+    const res = await fetch(
+        "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.ok) {
+        const data = await res.json();
+        const summaries = data.accountSummaries || [];
+        for (const acc of summaries) {
+            const props = acc.propertySummaries || [];
+            for (const p of props) {
+                // Return first property found
+                const id = p.property?.replace("properties/", "") || "";
+                if (id) {
+                    cachedPropertyId = id;
+                    console.log("Auto-discovered GA4 Property ID:", id, "Name:", p.displayName);
+                    return id;
+                }
+            }
+        }
+    }
+    throw new Error("GA4 Property ID bulunamadı. GA4_PROPERTY_ID env var ayarlayın.");
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "overview";
@@ -73,7 +103,7 @@ async function ga4Report(accessToken: string, propertyId: string, body: Record<s
 async function getAnalyticsDataRaw(period: string) {
     const accessToken = await getAccessToken();
     if (!accessToken) throw new Error("No access token");
-    const propertyId = process.env.GA4_PROPERTY_ID || "468682327";
+    const propertyId = await getGA4PropertyId(accessToken);
     const startDate = `${period}daysAgo`;
 
     const [overviewRes, pagesRes, countriesRes, devicesRes, sourcesRes, dailyRes] = await Promise.all([
