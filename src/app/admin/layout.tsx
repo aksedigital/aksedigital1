@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const supabase = createClient();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [user, setUser] = useState<{ email?: string } | null>(null);
+    const [user, setUser] = useState<{ name?: string; phone?: string; email?: string; avatar_url?: string } | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [showNotif, setShowNotif] = useState(false);
     const [showLang, setShowLang] = useState(false);
@@ -69,10 +69,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const langRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => {
-            setUser(data.user);
-        });
-    }, [supabase.auth]);
+        fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "me" }) })
+            .then(r => r.json())
+            .then(d => { if (d.success) setUser(d.user); });
+    }, []);
 
     // Fetch unread notifications
     const fetchNotifications = async () => {
@@ -144,7 +144,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }, []);
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
         router.push("/login");
         router.refresh();
     };
@@ -214,12 +214,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {/* User section */}
                 <div className="p-4 border-t border-white/5">
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                            {user?.email?.charAt(0).toUpperCase() || "A"}
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary overflow-hidden">
+                            {user?.avatar_url ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" /> : (user?.name?.charAt(0).toUpperCase() || "A")}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{user?.email || "Admin"}</p>
-                            <p className="text-[10px] text-muted">Yönetici</p>
+                            <p className="text-xs font-medium truncate">{user?.name || "Admin"}</p>
+                            <p className="text-[10px] text-muted">{user?.phone || "Yönetici"}</p>
                         </div>
                     </div>
                     <button
