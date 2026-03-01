@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
     BarChart3, Users, Eye, MousePointerClick, Search, Globe, Smartphone, Monitor,
-    TrendingUp, ArrowUpRight, ArrowDownRight, Minus, Loader2, RefreshCw
+    TrendingUp, ArrowUpRight, ArrowDownRight, Minus, Loader2, RefreshCw, Activity
 } from "lucide-react";
 
 interface AnalyticsOverview {
@@ -34,6 +34,8 @@ export default function AnalyticsPage() {
     const [error, setError] = useState("");
     const [analyticsError, setAnalyticsError] = useState("");
     const [tab, setTab] = useState<"analytics" | "seo">("analytics");
+    const [realtimeUsers, setRealtimeUsers] = useState<number | null>(null);
+    const [realtimePages, setRealtimePages] = useState<{ page: string; users: number }[]>([]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -45,11 +47,30 @@ export default function AnalyticsPage() {
             if (data.search) setSearchData(data.search);
             if (data.analyticsError) setAnalyticsError(data.analyticsError);
             if (data.analyticsError && data.searchError) setError("API bağlantısı kurulamadı: " + data.analyticsError);
+            if (data.realtime) {
+                setRealtimeUsers(data.realtime.activeUsers);
+                setRealtimePages(data.realtime.pages || []);
+            }
         } catch { setError("Veriler yüklenemedi."); }
         setLoading(false);
     };
 
     useEffect(() => { fetchData(); }, [period]);
+
+    // Auto-refresh realtime every 30s
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch("/api/analytics?action=realtime");
+                const data = await res.json();
+                if (data.activeUsers !== undefined) {
+                    setRealtimeUsers(data.activeUsers);
+                    setRealtimePages(data.pages || []);
+                }
+            } catch { /* silent */ }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     const fmtNum = (n: number) => n.toLocaleString("tr-TR");
     const fmtPct = (n: number) => `%${(n * 100).toFixed(1)}`;
@@ -103,20 +124,52 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-[#111] rounded-xl p-1 w-fit border border-white/5">
-                <button
-                    onClick={() => setTab("analytics")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "analytics" ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"}`}
-                >
-                    <BarChart3 className="w-4 h-4" /> Trafik
-                </button>
-                <button
-                    onClick={() => setTab("seo")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "seo" ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"}`}
-                >
-                    <Search className="w-4 h-4" /> SEO
-                </button>
+            <div className="flex items-center gap-4 mb-6">
+                <div className="flex gap-1 bg-[#111] rounded-xl p-1 border border-white/5">
+                    <button
+                        onClick={() => setTab("analytics")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "analytics" ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"}`}
+                    >
+                        <BarChart3 className="w-4 h-4" /> Trafik
+                    </button>
+                    <button
+                        onClick={() => setTab("seo")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "seo" ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"}`}
+                    >
+                        <Search className="w-4 h-4" /> SEO
+                    </button>
+                </div>
+
+                {/* Realtime Badge */}
+                {realtimeUsers !== null && (
+                    <div className="flex items-center gap-2 bg-[#111] border border-emerald-500/20 rounded-xl px-4 py-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                        </span>
+                        <span className="text-sm font-bold text-emerald-400">{realtimeUsers}</span>
+                        <span className="text-xs text-muted">aktif kullanıcı</span>
+                    </div>
+                )}
             </div>
+
+            {/* Realtime Pages */}
+            {realtimePages.length > 0 && (
+                <div className="bg-[#111] border border-emerald-500/10 rounded-xl p-4 mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Activity className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Şu an aktif sayfalar</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {realtimePages.map((p, i) => (
+                            <div key={i} className="bg-white/5 rounded-lg px-3 py-1.5 text-xs">
+                                <span className="text-muted">{p.page}</span>
+                                <span className="ml-2 text-emerald-400 font-bold">{p.users}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex items-center justify-center py-20">

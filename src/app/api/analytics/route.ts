@@ -79,15 +79,21 @@ export async function GET(req: NextRequest) {
             const data = await getSearchConsoleDataRaw(period);
             return NextResponse.json({ success: true, ...data });
         }
+        if (action === "realtime") {
+            const data = await getRealtimeData();
+            return NextResponse.json({ success: true, ...data });
+        }
         if (action === "overview") {
-            const [analytics, search] = await Promise.allSettled([
+            const [analytics, search, realtime] = await Promise.allSettled([
                 getAnalyticsDataRaw(period),
                 getSearchConsoleDataRaw(period),
+                getRealtimeData(),
             ]);
             return NextResponse.json({
                 success: true,
                 analytics: analytics.status === "fulfilled" ? analytics.value : null,
                 search: search.status === "fulfilled" ? search.value : null,
+                realtime: realtime.status === "fulfilled" ? realtime.value : null,
                 analyticsError: analytics.status === "rejected" ? analytics.reason?.message : null,
                 searchError: search.status === "rejected" ? search.reason?.message : null,
             });
@@ -97,6 +103,55 @@ export async function GET(req: NextRequest) {
         console.error("Analytics API error:", err);
         return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 });
     }
+}
+
+/* ── Realtime API ── */
+async function getRealtimeData() {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error("No access token");
+    const propertyId = await getGA4PropertyId(accessToken);
+
+    const res = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                metrics: [{ name: "activeUsers" }],
+            }),
+        }
+    );
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `Realtime API error: ${res.status}`);
+    }
+    const data = await res.json();
+    const activeUsers = Number(data.rows?.[0]?.metricValues?.[0]?.value || 0);
+
+    // Also get by page
+    const pageRes = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                dimensions: [{ name: "unifiedScreenName" }],
+                metrics: [{ name: "activeUsers" }],
+                orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+                limit: 5,
+            }),
+        }
+    );
+    let pages: { page: string; users: number }[] = [];
+    if (pageRes.ok) {
+        const pageData = await pageRes.json();
+        pages = (pageData.rows || []).map((r: Record<string, Record<string, string>[]>) => ({
+            page: r.dimensionValues?.[0]?.value || "",
+            users: Number(r.metricValues?.[0]?.value || 0),
+        }));
+    }
+
+    return { activeUsers, pages };
 }
 
 /* ── GA4 Data API via REST ── */
