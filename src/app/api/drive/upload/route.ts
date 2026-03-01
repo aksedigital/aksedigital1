@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { drive } from "@/lib/gdrive";
+import { getDrive } from "@/lib/gdrive";
 import { Readable } from "stream";
 
 export async function POST(req: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         const stream = Readable.from(buffer);
 
-        const res = await drive.files.create({
+        const res = await getDrive().files.create({
             requestBody: {
                 name: file.name,
                 mimeType: file.type,
