@@ -22,31 +22,47 @@ async function getAccessToken() {
 let cachedPropertyId: string | null = null;
 
 async function getGA4PropertyId(accessToken: string): Promise<string> {
-    if (process.env.GA4_PROPERTY_ID) return process.env.GA4_PROPERTY_ID;
     if (cachedPropertyId) return cachedPropertyId;
 
-    // Auto-discover via Admin API
-    const res = await fetch(
-        "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (res.ok) {
-        const data = await res.json();
-        const summaries = data.accountSummaries || [];
-        for (const acc of summaries) {
-            const props = acc.propertySummaries || [];
-            for (const p of props) {
-                // Return first property found
-                const id = p.property?.replace("properties/", "") || "";
-                if (id) {
-                    cachedPropertyId = id;
-                    console.log("Auto-discovered GA4 Property ID:", id, "Name:", p.displayName);
-                    return id;
+    // Auto-discover via Admin API (always try first)
+    try {
+        const res = await fetch(
+            "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (res.ok) {
+            const data = await res.json();
+            const summaries = data.accountSummaries || [];
+            const allProps: string[] = [];
+            for (const acc of summaries) {
+                const props = acc.propertySummaries || [];
+                for (const p of props) {
+                    const id = p.property?.replace("properties/", "") || "";
+                    if (id) {
+                        allProps.push(`${id} (${p.displayName || "unnamed"})`);
+                        if (!cachedPropertyId) {
+                            cachedPropertyId = id;
+                        }
+                    }
                 }
             }
+            console.log("Found GA4 properties:", allProps.join(", "));
+            if (cachedPropertyId) return cachedPropertyId;
+        } else {
+            const errBody = await res.text();
+            console.error("Admin API error:", res.status, errBody);
         }
+    } catch (e) {
+        console.error("Admin API discovery failed:", e);
     }
-    throw new Error("GA4 Property ID bulunamadı. GA4_PROPERTY_ID env var ayarlayın.");
+
+    // Fallback to env var
+    if (process.env.GA4_PROPERTY_ID) {
+        cachedPropertyId = process.env.GA4_PROPERTY_ID;
+        return cachedPropertyId;
+    }
+
+    throw new Error("GA4 Property bulunamadı. Analytics hesabınızda bu e-posta adresinin erişim izni olduğundan emin olun.");
 }
 
 export async function GET(req: NextRequest) {
