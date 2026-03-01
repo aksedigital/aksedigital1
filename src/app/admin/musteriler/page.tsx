@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase";
 import { Plus, Search, Trash2, Edit, X } from "lucide-react";
 
 interface Customer {
@@ -21,14 +20,10 @@ export default function MusterilerPage() {
     const [showModal, setShowModal] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", tax_no: "" });
-    const supabase = createClient();
-
     const fetchCustomers = async () => {
-        const { data } = await supabase
-            .from("customers")
-            .select("*")
-            .order("created_at", { ascending: false });
-        setCustomers(data || []);
+        const res = await fetch("/api/customers");
+        const data = await res.json();
+        setCustomers(data.data || []);
         setLoading(false);
     };
 
@@ -38,9 +33,9 @@ export default function MusterilerPage() {
 
     const handleSave = async () => {
         if (editId) {
-            await supabase.from("customers").update(form).eq("id", editId);
+            await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", id: editId, ...form }) });
         } else {
-            await supabase.from("customers").insert(form);
+            await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", ...form }) });
         }
         setShowModal(false);
         setEditId(null);
@@ -56,7 +51,7 @@ export default function MusterilerPage() {
 
     const handleDelete = async (id: string) => {
         if (!confirm("Bu müşteriyi silmek istediğinize emin misiniz?")) return;
-        await supabase.from("customers").delete().eq("id", id);
+        await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id }) });
         fetchCustomers();
     };
 
