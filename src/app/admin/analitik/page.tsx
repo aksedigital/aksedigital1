@@ -32,6 +32,7 @@ export default function AnalyticsPage() {
         overview: SearchOverview; queries: QueryData[]; daily: SearchDailyData[];
     } | null>(null);
     const [error, setError] = useState("");
+    const [analyticsError, setAnalyticsError] = useState("");
     const [tab, setTab] = useState<"analytics" | "seo">("analytics");
 
     const fetchData = async () => {
@@ -42,7 +43,8 @@ export default function AnalyticsPage() {
             const data = await res.json();
             if (data.analytics) setAnalyticsData(data.analytics);
             if (data.search) setSearchData(data.search);
-            if (data.analyticsError && data.searchError) setError("API bağlantısı kurulamadı. OAuth token'larını kontrol edin.");
+            if (data.analyticsError) setAnalyticsError(data.analyticsError);
+            if (data.analyticsError && data.searchError) setError("API bağlantısı kurulamadı: " + data.analyticsError);
         } catch { setError("Veriler yüklenemedi."); }
         setLoading(false);
     };
@@ -255,7 +257,7 @@ export default function AnalyticsPage() {
                             </div>
                         </>
                     )}
-                    {!analyticsData && <div className="bg-[#111] border border-white/5 rounded-xl p-12 text-center text-muted text-sm">Analytics verisi bulunamadı. OAuth token scope&apos;larını kontrol edin.</div>}
+                    {!analyticsData && <div className="bg-[#111] border border-white/5 rounded-xl p-12 text-center text-muted text-sm">{analyticsError ? `Hata: ${analyticsError}` : "Analytics verisi bulunamadı. Henüz ziyaretçi verisi olmayabilir."}</div>}
                 </div>
             ) : (
                 /* ── SEO TAB ── */
