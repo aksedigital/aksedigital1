@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase";
 import {
     Plus, Trash2, Save, Send, ArrowLeft, Copy, Check, X,
     MessageSquare, Mail, Smartphone, Link2, ZoomIn, ZoomOut,
@@ -39,7 +38,6 @@ function Builder() {
     const router = useRouter();
     const sp = useSearchParams();
     const editId = sp.get("edit");
-    const supabase = createClient();
 
     /* state */
     const [name, setName] = useState("");
@@ -64,7 +62,7 @@ function Builder() {
     /* load edit */
     useEffect(() => {
         if (editId) {
-            supabase.from("proposals").select("*").eq("id", editId).single().then(({ data: d }) => {
+            fetch(`/api/proposals?id=${editId}`).then(r => r.json()).then(({ data: d }) => {
                 if (!d) return;
                 setName(d.customer_name || ""); setEmail(d.customer_email || "");
                 setPhone(d.customer_phone || ""); setCompany(d.customer_company || "");
@@ -109,9 +107,10 @@ function Builder() {
         };
         let id = savedId;
         if (savedId) {
-            await supabase.from("proposals").update(payload).eq("id", savedId);
+            await fetch("/api/proposals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", id: savedId, ...payload }) });
         } else {
-            const { data } = await supabase.from("proposals").insert(payload).select("id").single();
+            const res = await fetch("/api/proposals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", ...payload }) });
+            const data = await res.json();
             id = data?.id || null; setSavedId(id);
         }
         setSaving(false);
